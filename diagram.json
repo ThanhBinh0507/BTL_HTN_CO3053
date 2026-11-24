@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "author": "Smart Virtual School",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 20, "left": 0, "attrs": {} },
+
+    { "type": "wokwi-hc-sr04", "id": "us_a", "top": -230, "left": -280, "attrs": { "distance": "200" } },
+    { "type": "wokwi-hc-sr04", "id": "us_b", "top": -230, "left": -30, "attrs": { "distance": "200" } },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir", "top": -230, "left": 210, "attrs": {} },
+
+    { "type": "wokwi-dht22", "id": "dht", "top": -50, "left": 250, "attrs": { "temperature": "26", "humidity": "60" } },
+    { "type": "wokwi-photoresistor-sensor", "id": "ldr", "top": 90, "left": 250, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot_co2", "top": 200, "left": 250, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot_current", "top": 290, "left": 250, "attrs": {} },
+
+    { "type": "wokwi-led", "id": "led_light", "top": -110, "left": -270, "attrs": { "color": "yellow", "label": "LIGHT" } },
+    { "type": "wokwi-led", "id": "led_fan", "top": -110, "left": -190, "attrs": { "color": "cyan", "label": "FAN" } },
+    { "type": "wokwi-led", "id": "led_green", "top": -10, "left": -270, "attrs": { "color": "green", "label": "NORM" } },
+    { "type": "wokwi-led", "id": "led_red", "top": -10, "left": -190, "attrs": { "color": "red", "label": "ALARM" } },
+
+    { "type": "wokwi-resistor", "id": "r1", "top": -45, "left": -275, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -45, "left": -195, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": 55, "left": -275, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": 55, "left": -195, "attrs": { "value": "220" } },
+
+    { "type": "wokwi-buzzer", "id": "bz", "top": 120, "left": -250, "attrs": { "volume": "0.5" } },
+
+    { "type": "wokwi-pushbutton", "id": "btn_manual", "top": 230, "left": -270, "attrs": { "color": "blue", "label": "MANUAL" } },
+    { "type": "wokwi-pushbutton", "id": "btn_reset", "top": 230, "left": -160, "attrs": { "color": "red", "label": "RESET" } }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "us_a:VCC", "esp:5V", "red", [] ],
+    [ "us_a:GND", "esp:GND.1", "black", [] ],
+    [ "us_a:TRIG", "esp:14", "orange", [] ],
+    [ "us_a:ECHO", "esp:27", "yellow", [] ],
+
+    [ "us_b:VCC", "esp:5V", "red", [] ],
+    [ "us_b:GND", "esp:GND.1", "black", [] ],
+    [ "us_b:TRIG", "esp:26", "orange", [] ],
+    [ "us_b:ECHO", "esp:25", "yellow", [] ],
+
+    [ "pir:VCC", "esp:5V", "red", [] ],
+    [ "pir:GND", "esp:GND.1", "black", [] ],
+    [ "pir:OUT", "esp:33", "purple", [] ],
+
+    [ "dht:VCC", "esp:3V3", "red", [] ],
+    [ "dht:GND", "esp:GND.2", "black", [] ],
+    [ "dht:SDA", "esp:4", "green", [] ],
+
+    [ "ldr:VCC", "esp:3V3", "red", [] ],
+    [ "ldr:GND", "esp:GND.2", "black", [] ],
+    [ "ldr:AO", "esp:34", "blue", [] ],
+
+    [ "pot_co2:VCC", "esp:3V3", "red", [] ],
+    [ "pot_co2:GND", "esp:GND.2", "black", [] ],
+    [ "pot_co2:SIG", "esp:35", "brown", [] ],
+
+    [ "pot_current:VCC", "esp:3V3", "red", [] ],
+    [ "pot_current:GND", "esp:GND.2", "black", [] ],
+    [ "pot_current:SIG", "esp:VP", "magenta", [] ],
+
+    [ "led_light:A", "esp:18", "yellow", [] ],
+    [ "led_light:C", "r1:1", "black", [] ],
+    [ "r1:2", "esp:GND.1", "black", [] ],
+
+    [ "led_fan:A", "esp:19", "cyan", [] ],
+    [ "led_fan:C", "r2:1", "black", [] ],
+    [ "r2:2", "esp:GND.1", "black", [] ],
+
+    [ "led_green:A", "esp:16", "green", [] ],
+    [ "led_green:C", "r3:1", "black", [] ],
+    [ "r3:2", "esp:GND.1", "black", [] ],
+
+    [ "led_red:A", "esp:17", "red", [] ],
+    [ "led_red:C", "r4:1", "black", [] ],
+    [ "r4:2", "esp:GND.1", "black", [] ],
+
+    [ "bz:1", "esp:23", "orange", [] ],
+    [ "bz:2", "esp:GND.1", "black", [] ],
+
+    [ "btn_manual:1.l", "esp:32", "blue", [] ],
+    [ "btn_manual:2.l", "esp:GND.1", "black", [] ],
+
+    [ "btn_reset:1.l", "esp:13", "red", [] ],
+    [ "btn_reset:2.l", "esp:GND.1", "black", [] ]
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "smart-school-dashboard-nodered",
+  "description": "Node-RED runtime for Smart Virtual School (CO3053)",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-red-contrib-influxdb": "~0.6.1"
+  }
+}
+

@@ -1,0 +1,281 @@
+[
+  {
+    "id": "tab_smart_school",
+    "type": "tab",
+    "label": "Smart Virtual School Pipeline",
+    "disabled": false,
+    "info": "Pipeline chuẩn hóa dữ liệu Telemetry, Event, Status và Điều khiển theo kiến trúc CPS Digital Twin CO3053."
+  },
+  {
+    "id": "mqtt_broker_config",
+    "type": "mqtt-broker",
+    "name": "Mosquitto Local Broker",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "nodered-smart-school-backend",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true
+  },
+  {
+    "id": "influxdb_config",
+    "type": "influxdb",
+    "hostname": "influxdb",
+    "port": "8086",
+    "protocol": "http",
+    "database": "smart_school_data",
+    "name": "InfluxDB 2.0 HCMUT",
+    "usetls": false,
+    "tls": "",
+    "influxdbVersion": "2.0",
+    "url": "http://influxdb:8086",
+    "timeout": "10",
+    "rejectUnauthorized": false
+  },
+  {
+    "id": "mqtt_in_telemetry",
+    "type": "mqtt in",
+    "z": "tab_smart_school",
+    "name": "MQTT Sub: Telemetry",
+    "topic": "school/+/+/+/telemetry",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "mqtt_broker_config",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "fn_parse_telemetry"
+      ]
+    ]
+  },
+  {
+    "id": "fn_parse_telemetry",
+    "type": "function",
+    "z": "tab_smart_school",
+    "name": "Parse Telemetry (SCD40, VL53, INA226)",
+    "func": "let parts = msg.topic.split('/');\nlet building = parts[1] || \"A1\";\nlet floor = parts[2] || \"2\";\nlet roomID = parts[3] || \"A1-201\";\n\nlet p = msg.payload;\nif (typeof p === 'string') {\n    try {\n        p = JSON.parse(p);\n    } catch(e) {\n        node.error(\"JSON parse error\", msg);\n        return null;\n    }\n}\n\n// Format chuẩn cho node-red-contrib-influxdb (Influx 2.0)\n// [fields, tags]\nmsg.payload = [\n    {\n        count: Number(p.count !== undefined ? p.count : 0),\n        presence: Number(p.presence !== undefined ? p.presence : 0),\n        t: Number(p.t !== undefined ? p.t : 0.0),\n        rh: Number(p.rh !== undefined ? p.rh : 0.0),\n        co2: Number(p.co2 !== undefined ? p.co2 : 400),\n        lux: Number(p.lux !== undefined ? p.lux : 0),\n        p_w: Number(p.p_w !== undefined ? p.p_w : 0.0),\n        e_wh: Number(p.e_wh !== undefined ? p.e_wh : 0.0),\n        light: String(p.light || \"off\"),\n        fan: String(p.fan || \"off\"),\n        mode: String(p.mode || \"auto\"),\n        alarm_state: String(p.alarm_state || \"NORMAL\"),\n        alarm_level: Number(p.alarm_level !== undefined ? p.alarm_level : 0)\n    },\n    {\n        building: String(building),\n        floor: String(floor),\n        room: String(roomID),\n        node_type: String(p.node_type || \"classroom\")\n    }\n];\n\nmsg.measurement = \"room_telemetry\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 470,
+    "y": 100,
+    "wires": [
+      [
+        "influxdb_out_telemetry"
+      ]
+    ]
+  },
+  {
+    "id": "influxdb_out_telemetry",
+    "type": "influxdb out",
+    "z": "tab_smart_school",
+    "influxdb": "influxdb_config",
+    "name": "Write Telemetry to InfluxDB",
+    "measurement": "room_telemetry",
+    "precision": "s",
+    "retentionPolicy": "",
+    "database": "smart_school_data",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "HCMUT",
+    "bucket": "smart_school_data",
+    "x": 780,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "mqtt_in_event",
+    "type": "mqtt in",
+    "z": "tab_smart_school",
+    "name": "MQTT Sub: Event (Mục 3)",
+    "topic": "school/+/+/+/event",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "mqtt_broker_config",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 160,
+    "y": 200,
+    "wires": [
+      [
+        "fn_parse_event"
+      ]
+    ]
+  },
+  {
+    "id": "fn_parse_event",
+    "type": "function",
+    "z": "tab_smart_school",
+    "name": "Parse Event & Alarm (FSM 7.2)",
+    "func": "let parts = msg.topic.split('/');\nlet building = parts[1] || \"A1\";\nlet floor = parts[2] || \"2\";\nlet roomID = parts[3] || \"A1-201\";\n\nlet p = msg.payload;\nif (typeof p === 'string') {\n    try {\n        p = JSON.parse(p);\n    } catch(e) {\n        p = { type: \"EVENT\", detail: msg.payload };\n    }\n}\n\nlet eventType = String(p.type || \"INFO\");\nlet severity = 0;\nif (eventType.includes(\"ALARM\") || eventType === \"FIRE\" || eventType === \"OVERTEMP\") {\n    severity = 3; // ALARM\n} else if (eventType.includes(\"FAULT\")) {\n    severity = 2; // FAULT\n} else if (eventType.includes(\"WARNING\") || eventType === \"OVERCAPACITY\" || eventType === \"ENERGY_WASTE\") {\n    severity = 1; // WARNING\n}\n\nmsg.payload = [\n    {\n        type: eventType,\n        detail: String(p.detail || p.msg || \"\"),\n        val: Number(p.val !== undefined ? p.val : 0),\n        severity: severity\n    },\n    {\n        building: String(building),\n        floor: String(floor),\n        room: String(roomID)\n    }\n];\n\nmsg.measurement = \"room_event\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 470,
+    "y": 200,
+    "wires": [
+      [
+        "influxdb_out_event"
+      ]
+    ]
+  },
+  {
+    "id": "influxdb_out_event",
+    "type": "influxdb out",
+    "z": "tab_smart_school",
+    "influxdb": "influxdb_config",
+    "name": "Write Event to InfluxDB",
+    "measurement": "room_event",
+    "precision": "s",
+    "retentionPolicy": "",
+    "database": "smart_school_data",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "HCMUT",
+    "bucket": "smart_school_data",
+    "x": 770,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "mqtt_in_status",
+    "type": "mqtt in",
+    "z": "tab_smart_school",
+    "name": "MQTT Sub: Status (LWT)",
+    "topic": "school/+/+/+/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt_broker_config",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 160,
+    "y": 300,
+    "wires": [
+      [
+        "fn_parse_status"
+      ]
+    ]
+  },
+  {
+    "id": "fn_parse_status",
+    "type": "function",
+    "z": "tab_smart_school",
+    "name": "Parse LWT Status (Online/Offline)",
+    "func": "let parts = msg.topic.split('/');\nlet building = parts[1] || \"A1\";\nlet floor = parts[2] || \"2\";\nlet roomID = parts[3] || \"A1-201\";\n\nlet statusStr = String(msg.payload).trim().toLowerCase();\nlet isOnline = (statusStr === \"online\") ? 1 : 0;\n\nmsg.payload = [\n    {\n        online: isOnline,\n        state: statusStr\n    },\n    {\n        building: String(building),\n        floor: String(floor),\n        room: String(roomID)\n    }\n];\n\nmsg.measurement = \"room_status\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 480,
+    "y": 300,
+    "wires": [
+      [
+        "influxdb_out_status"
+      ]
+    ]
+  },
+  {
+    "id": "influxdb_out_status",
+    "type": "influxdb out",
+    "z": "tab_smart_school",
+    "influxdb": "influxdb_config",
+    "name": "Write Status to InfluxDB",
+    "measurement": "room_status",
+    "precision": "s",
+    "retentionPolicy": "",
+    "database": "smart_school_data",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "HCMUT",
+    "bucket": "smart_school_data",
+    "x": 770,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "http_in_cmd",
+    "type": "http in",
+    "z": "tab_smart_school",
+    "name": "POST /api/cmd",
+    "url": "/api/cmd",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 160,
+    "y": 420,
+    "wires": [
+      [
+        "fn_cmd_dispatch"
+      ]
+    ]
+  },
+  {
+    "id": "fn_cmd_dispatch",
+    "type": "function",
+    "z": "tab_smart_school",
+    "name": "Prepare MQTT Command (with ack_alarm)",
+    "func": "let b = msg.payload.building || \"A1\";\nlet f = msg.payload.floor || \"2\";\nlet r = msg.payload.room || \"A1-201\";\n\nlet topic = `school/${b}/${f}/${r}/cmd`;\nlet cmd = {\n    timestamp: new Date().toISOString(),\n    light: msg.payload.light,\n    fan: msg.payload.fan,\n    mode: msg.payload.mode,\n    ack_alarm: msg.payload.ack_alarm !== undefined ? msg.payload.ack_alarm : false\n};\n\nlet mqttMsg = {\n    topic: topic,\n    payload: JSON.stringify(cmd)\n};\n\nlet httpMsg = {\n    payload: {\n        status: \"OK\",\n        published_to: topic,\n        command: cmd\n    },\n    req: msg.req,\n    res: msg.res\n};\n\nreturn [mqttMsg, httpMsg];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 470,
+    "y": 420,
+    "wires": [
+      [
+        "mqtt_out_cmd"
+      ],
+      [
+        "http_out_cmd_resp"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_out_cmd",
+    "type": "mqtt out",
+    "z": "tab_smart_school",
+    "name": "MQTT Pub: Command",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_config",
+    "x": 760,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "http_out_cmd_resp",
+    "type": "http response",
+    "z": "tab_smart_school",
+    "name": "HTTP 200 OK",
+    "statusCode": "200",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "x": 740,
+    "y": 460,
+    "wires": []
+  }
+]

@@ -1,0 +1,72 @@
+services:
+  # 1. MQTT Broker (Eclipse Mosquitto)
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: smart_school_mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  # 2. InfluxDB Time-Series Database v2.x (Alpine lightweight)
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: smart_school_influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword123
+      - DOCKER_INFLUXDB_INIT_ORG=HCMUT
+      - DOCKER_INFLUXDB_INIT_BUCKET=smart_school_data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-admin-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  # 3. Node-RED Flow Engine (with node-red-contrib-influxdb pre-installed)
+  nodered:
+    build:
+      context: ./nodered
+      dockerfile: Dockerfile
+    image: smart-school-nodered:latest
+    container_name: smart_school_nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - ./nodered:/data
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  # 4. Grafana Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smart_school_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - influxdb
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  grafana_data:
+
